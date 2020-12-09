@@ -1,0 +1,35 @@
+variables:
+  # Please edit to your GitLab project
+  PACKAGE: turing.haplox.net/haperp/antd-boilerplate
+  DOCKER_IMAGE: registry-vpc.cn-shenzhen.aliyuncs.com/haperp/antd-boilerplate
+
+stages:
+  - build
+  - deploy
+
+build-docker:
+  only:
+    - master@haperp/antd-boilerplate
+  stage: build
+  image: docker:dind
+  script:
+    - pwd
+    - ls -al
+    - mkdir -p /var/html
+    - ln -svf ${CI_PROJECT_DIR} /var/html
+    - cd /var/html/${CI_PROJECT_NAME}
+    - docker build -f Dockerfile -t ${DOCKER_IMAGE} .
+    - docker push ${DOCKER_IMAGE}
+    - docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE}:${CI_COMMIT_REF_NAME}-$(echo $CI_COMMIT_SHA | cut -b -7)
+    - docker push ${DOCKER_IMAGE}:${CI_COMMIT_REF_NAME}-$(echo $CI_COMMIT_SHA | cut -b -7)
+
+deploy-aliyun:
+  only:
+    - master@haperp/antd-boilerplate
+  stage: deploy
+  image: joshle/docker-kubectl:v1.9.7
+  script:
+    - export TILLER_NAMESPACE=hapyun
+    - cd helm/${CI_PROJECT_NAME}
+    - echo "helm upgrade --install --set image.repository=${DOCKER_IMAGE},image.tag=${CI_COMMIT_REF_NAME}-$(echo $CI_COMMIT_SHA | cut -b -7) --namespace hapyun ${CI_PROJECT_NAME} ."
+    - helm upgrade --install --set image.repository=${DOCKER_IMAGE},image.tag=${CI_COMMIT_REF_NAME}-$(echo $CI_COMMIT_SHA | cut -b -7) --namespace hapyun ${CI_PROJECT_NAME} .
